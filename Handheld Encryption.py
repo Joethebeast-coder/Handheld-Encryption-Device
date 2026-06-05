@@ -44,15 +44,19 @@ LETTERS = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","
     ",","/","[","]","`","~","\\","1","2","3","4","5","6","7","8","9","0","-","+","=","!","@","#","$","%","^","&",
     "*","(",")","<",">","?","|",";",";",":","'","\"","{","}"]
 
-#Creates ip file
+#Creates json files
 with open("known_ips.json", "w") as f:
     f.close
 
 with open("my_letters.json", "w") as f:
     f.close
 
+with open("contacts.json", "w") as f:
+    f.close
+
 class esp_network_server:
     def __init__(self):
+        self.running = True
         #Networking Setup
         self.wlan = network.WLAN()
         self.wlan.active(True)
@@ -75,6 +79,13 @@ class esp_network_server:
         self.known_ips_path = "known_ips.json"
         self.known_ips = self.load_known_ips()
 
+        self.contacts_path = "contacts.json"
+        if os.path.exists(self.contacts_path):
+            with open(self.contacts_path, "r") as f:
+                self.contacts = json.load(f)
+        else:
+            self.contacts = {}
+
     def load_known_ips(self):
         # Load known IPs properly
         if os.path.exists(self.known_ips_path):
@@ -86,13 +97,28 @@ class esp_network_server:
         else:
             return {}
         
-    def run(self):
-        while True:
+    def run(self, get_message, target_ip):
+        self.clients = {}
+        self.target_ip = target_ip
+
+        while self.running:
             c, addr = self.s.accept()
             ip = addr[0]
 
+            self.clients[ip] = {
+                "socket": c,
+                "letters": LETTERS
+            }
+
             if ip not in self.known_ips:
-                # First time this IP connects
+
+                name = input(f"New device: {ip}. Enter a contact name: ")
+                self.contacts[name] = ip
+
+                with open(self.contacts_path, "w") as f:
+                    json.dump(self.contacts, f)
+
+                #First time this IP connects, give their key
                 random.shuffle(LETTERS)
                 self.known_ips[ip] = LETTERS.copy()
 
@@ -107,11 +133,15 @@ class esp_network_server:
                 # Returning IP — load its saved alphabet
                 LETTERS = self.known_ips[ip]
 
+            self.clients[ip] = {
+                "socket": c,
+                "letters": LETTERS
+            }
             #Start timer
             last_check = time.time()
 
             last_msg = None
-            while True:
+            while self.running:
                 #Check for incoming data
                 c.settimeout(0.1)
                 try:
@@ -120,6 +150,19 @@ class esp_network_server:
                         last_msg = data
                         client_msg = data.decode('utf-8')
                         print("Client says:", client_msg)
+
+                        if self.message_to_send == "Closing Server":
+                            if "rec-close" in client_msg and ip in client_msg:
+                                time.sleep(0.1)
+                                c.close()
+                                self.running = False
+                            else:
+                                time.sleep(3)
+                                if "rec-close" in client_msg and ip in client_msg:
+                                    time.sleep(0.1)
+                                    c.close()
+                                    self.running = False  
+                                
                 except:
                     pass
 
@@ -132,11 +175,25 @@ class esp_network_server:
                     if not status:
                         print("Client failed status check. Closing.")
                         c.close()
-                        break
+                        self.running = False
 
                 #Send encrypted message
-                message = input("Enter anything: ")
-                new_message, sent_key = ce.cipher(message, alphabet=LETTERS)
+                message = get_message()
+                
+                target = self.clients.get(self.target_ip)
+                if not target:
+                    print("Target IP not connected")
+                    continue
+
+                sock = target["socket"]
+                letters = target["letters"]
+
+                if message == "Closing Server":
+                    self.message_to_send = "Closing Server"
+                    sock.send(self.message_to_send.encode())
+                    continue
+
+                new_message, sent_key = ce.cipher(message, alphabet=letters)
                 combined_message = sent_key + new_message
                 c.send(combined_message.encode("utf-8"))
                 
@@ -155,7 +212,9 @@ class esp_network_server:
 
 
 class esp_network_client:
+
     def __init__(self):
+        self.running = True
         self.wlan = network.WLAN(network.WLAN.IF_STA)
         self.wlan.active(True)
         self.wlan.connect('ESP-AP')
@@ -164,8 +223,7 @@ class esp_network_client:
             time.sleep(0.1)
         
     
-    def client(self):
-        
+    def client(self, out_message):  
         if os.path.exists("my_letters.json"):
             with open("my_letters.json", "r") as f:
                 data = f.read().strip()
@@ -181,7 +239,9 @@ class esp_network_client:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((server_ip, server_port))
         s.send(cli_ip.encode())
-
+        
+        timer = time.time()
+        
         if LETTERS is None:
             data = s.recv(1024).decode("utf-8")
             LETTERS = json.loads(data)
@@ -189,12 +249,52 @@ class esp_network_client:
             with open("my_letters.json", "w") as f:
                 json.dump(LETTERS, f)
         
-        msg = s.recv(1024)
-        true_message = ce.decipher(msg, alphabet=LETTERS)
+        while self.running:
+            msg = s.recv(1024)
+            if msg.decode() == "Closing Server":
+                s.send(f"rec-close : {cli_ip}")
+                s.close()
+                self.running = False
 
-        packet = f"Received {cli_ip}"
-        s.send(packet.encode('utf-8'))
+            true_message = ce.decipher(msg, alphabet=LETTERS)
+            out_message(true_message)
+
+            if time.time() - timer >= 15:
+                packet = f"Received {cli_ip}"
+                s.send(packet.encode('utf-8'))
+                timer = time.time()
+
 
 
 #_____________________________________________Main__________________________________________________
+
+def get_processed_message():
+    return processed_txt
+
+def use_message(decoded_msg):
+    print(f"Message: {decoded_msg}") #Will be replaced with LCD logic
+
+
+while True:
+    with open("contacts.json", "r") as f:
+        contacts = json.load(f)
+    
+    print("Contacts: ")
+    for name in contacts:
+        print(name)
+
+    choice = input("Send?")
+    
+    if choice == "Send":
+        target_name = input("Send to who?: ")
+        target_ip = contacts[target_name]
+        device = esp_network_server()
+        device.run(get_processed_message)
+
+    else:
+        device = esp_network_client()
+        device.client(use_message)
+
+
+
 
