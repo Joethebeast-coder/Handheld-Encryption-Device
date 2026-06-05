@@ -1,6 +1,6 @@
 Framework
 
-                          My Library: Cencrypt
-Microphone -> Voice to Text -> Encrypt -> Connect to a device -> Create special list for device -> Send
-                Google API                               IP Networking 
+                  Google API                                                       My Library: Cencrypt
+Microphone -> Voice to Text -> Connect to a device -> Create special list for device -> Encrypt -> Send
+                                                 IP Networking 
 
