@@ -1,4 +1,4 @@
-# Handheld-Encryption-Device
+# Handcryption
 A device that encrypts and sends/receives messages made from speech-to-text.
 ----------------------------------------------------------------------------
 
