@@ -33,7 +33,7 @@ A secondary group chat feature allows multiple devices to post messages through 
  
 | Component | Purpose |
 |-----------|---------|
-| ESP32 (MicroPython) | Main controller |
+| Adafruit ESP32-S2 Feather (MicroPython) | Main controller |
 | SSD1680 e-ink display (250×128) | UI output via SPI |
 | MAX17048 fuel gauge (I2C) | Battery percentage reading |
 | Piezo buzzer (PWM) | Audio feedback chimes |
