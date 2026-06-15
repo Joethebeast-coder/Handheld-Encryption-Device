@@ -1,6 +1,6 @@
 # Handcryption
  
-A hardware-based encrypted peer-to-peer messaging device built on MicroPython (ESP32), with a companion Flask server for speech-to-text and group chat support.
+A hardware-based encrypted peer-to-peer messaging device built on MicroPython (ESP32), with a companion Flask server for speech-to-text, message relay, and group chat support.
  
 ---
  
@@ -18,14 +18,13 @@ A hardware-based encrypted peer-to-peer messaging device built on MicroPython (E
 - [Device Setup](#device-setup)
 - [UI & Navigation](#ui--navigation)
 - [File Storage](#file-storage)
-
 ---
  
 ## Overview
  
-Handcryption is a hardware-based encrypted peer-to-peer messaging device that runs entirely on your local network, with no cloud dependencies, designed around physical ESP32 devices. Messages are recorded via voice, transcribed using a local Vosk speech-to-text model running on a companion server, encrypted using a custom substitution cipher, and transmitted over a local TCP socket network. The device uses an e-ink display and physical buttons for all interaction — no smartphone or touchscreen required.
+Handcryption is a hardware-based encrypted peer-to-peer messaging device built around physical ESP32 devices and a Flask server hosted on a Raspberry Pi 4, exposed publicly via an ngrok tunnel. Messages are recorded via voice, transcribed using a local Vosk speech-to-text model on the companion server, encrypted using a custom substitution cipher, and relayed through the server's mailbox system. The device uses an e-ink display and physical buttons for all interaction — no smartphone or touchscreen required.
  
-A secondary group chat feature allows multiple devices to post messages through the Flask server, which are encrypted with a shared server-side alphabet and viewable in a basic web interface.
+Each device is assigned a unique numeric ID on first boot, which is used to route messages and identify contacts. A secondary group chat feature allows multiple devices to post to a shared encrypted channel viewable in a basic web interface.
  
 ---
  
@@ -63,17 +62,18 @@ A secondary group chat feature allows multiple devices to post messages through 
 ```
 handcryption/
 ├── main.py              # ESP32 MicroPython firmware (device code)
-├── server.py            # Flask server (STT + group chat backend)
+├── server.py            # Flask server (STT + relay + group chat backend)
 ├── Cencrypt.py          # Custom substitution cipher (cipher/decipher)
 ├── ssd1680.py           # E-ink display driver
 ├── models/
 │   └── vosk-model-small-en-us-0.15/   # Vosk offline STT model
 ├── templates/
 │   └── web_msg.html     # Group chat web interface
-├── known_ips.json       # Per-IP shuffled alphabet store (auto-created)
-├── contacts.json        # Contact name → IP map (auto-created)
+├── known_ids.json       # Per-device-ID shuffled alphabet store (auto-created)
+├── contacts.json        # Contact name → device ID map (auto-created)
 ├── history.json         # Outbound message log (auto-created)
-└── my_letters.json      # Client-side cipher alphabet (auto-created)
+├── my_letters.json      # Client-side cipher alphabet (auto-created)
+└── device_ID.json       # This device's unique ID (auto-created on first boot)
 ```
  
 ---
@@ -82,39 +82,38 @@ handcryption/
  
 ### Encryption (Cencrypt)
  
-Handcryption uses [Cencrypt](https://pypi.org/project/Cencrypt/), a custom substitution cipher library available on PyPI. The full printable character set (letters, digits, punctuation, space) is stored in `LETTERS`. When two devices connect for the first time, the server shuffles a copy of `LETTERS` and sends it to the client as that device's personal cipher alphabet. This shuffled alphabet is saved to `known_ips.json` on the server and `my_letters.json` on the client, so future sessions reuse the same key.
+Handcryption uses [Cencrypt](https://pypi.org/project/Cencrypt/), a custom substitution cipher library available on PyPI. The full printable character set (letters, digits, punctuation, space) is stored in `LETTERS`. When two devices connect for the first time, the sending device shuffles a copy of `LETTERS` and sends it to the recipient via the server mailbox as that device's personal cipher alphabet. This shuffled alphabet is saved to `known_ids.json` on the sender and `my_letters.json` on the recipient, so future sessions reuse the same key.
  
 - `Cencrypt.cipher(message, alphabet)` — encrypts a plaintext string using the shuffled alphabet; returns the ciphertext and the key used for that message.
 - `Cencrypt.decipher(ciphertext, alphabet)` — decrypts a message given the matching alphabet.
-The combined message sent over the wire is `key + ciphertext` in a single packet.
+The combined message sent over the wire is `key + ciphertext` concatenated into a single string.
  
 ### Peer-to-Peer Messaging
  
-The device can operate as either a **server** or a **client** in any given session:
+Messaging is relayed through the Flask server's mailbox system rather than direct socket connections. Each device has a unique 9-digit numeric ID assigned at first boot.
  
-**Server mode** (`esp_network_server`):
-1. Connects to the home Wi-Fi network and also starts a local access point (`ESP-AP`).
-2. Binds a TCP socket on port `40675` and waits for one incoming connection.
-3. If the connecting IP is new, prompts the user (via voice recording) to name the contact, assigns a shuffled cipher alphabet, and sends it to the client.
-4. Encrypts the queued outbound message and sends it. Saves the exchange to `history.json`.
-5. Performs a liveness check every 15 seconds by verifying the client echoes its own IP back in a keep-alive packet.
-**Client mode** (`esp_network_client`):
-1. Connects to `ESP-AP` (the other device's access point).
-2. If no alphabet is stored in `my_letters.json`, receives one from the server.
-3. Waits for encrypted packets, deciphers them using the stored alphabet, plays a notification chime, and displays the message on the e-ink screen.
-4. Sends a keep-alive packet (`Received <ip>`) every 15 seconds.
+**Sending** (`esp_network_server`):
+1. If the target device ID is new, prompts the user (via voice recording) to name the contact, generates a shuffled cipher alphabet, and delivers it to the recipient via `POST /send-msg`.
+2. Saves the shuffled alphabet to `known_ids.json` keyed by the target's device ID.
+3. Encrypts the outbound message using the stored alphabet for that contact.
+4. Posts the encrypted message to `POST /send-msg` with the destination device ID.
+5. Saves the exchange (plaintext + ciphertext + timestamp + contact) to `history.json`.
+**Receiving** (`esp_network_client`):
+1. On entering receive mode (idle timeout), polls `GET /updates?Request=check_mail&dev_id=<id>` for new messages.
+2. If no alphabet is stored in `my_letters.json`, retrieves and saves the one delivered by the sender.
+3. Deciphers incoming messages using the stored alphabet, plays a notification chime, and displays the message on screen.
 ### Group Chat
  
-The group chat feature routes through the Flask server at `192.168.1.254`:
+The group chat feature routes through the Flask server:
  
-1. The user sets a username (recorded by voice on first use, stored in `gc_username`).
-2. Messages are posted via `POST /gc` with the username, IP, and message as query parameters.
+1. The user sets a username on first use (recorded by voice, stored in `gc_username` for the session).
+2. Messages are posted via `POST /gc` with the username, device ID, and message as parameters.
 3. The server encrypts incoming messages with a single server-side shuffled alphabet (`ALPH`) and appends them to `messg_hist`.
-4. Devices can retrieve the server's alphabet via `GET /updates?Request=serv_letters` and the message history via `GET /updates?Request=prov_hist`, then decrypt locally with `Cencrypt.decipher`.
-5. The web interface at `/gc` (served by `web_msg.html`) polls `GET /messages` every 2 seconds and renders the encrypted message log in a browser — messages appear encrypted to anyone intercepting the HTTP traffic.
+4. Devices retrieve the server alphabet via `GET /updates?Request=serv_letters` and message history via `GET /updates?Request=prov_hist`, then decrypt locally with `Cencrypt.decipher`.
+5. The web interface at `/gc` (served by `web_msg.html`) polls `GET /messages` and renders the encrypted message log in a browser — messages appear encrypted to anyone intercepting the HTTP traffic.
 ### Speech-to-Text
  
-Audio is captured at 8 kHz mono using the ADC on pin 17. While the record button is held, 16-bit PCM samples are collected in memory. On release, a WAV file is written to flash (`recording.wav`) and uploaded via `POST /stt` to the Flask server.
+Audio is captured at 8 kHz mono using the ADC on pin 17. While the record button is held, 16-bit PCM samples are collected in memory. On release, a WAV file is written to flash (`recording.wav`) and uploaded via `POST /stt` to the Flask server, along with the device's ID.
  
 The server processes the audio with **Vosk** (offline STT, no cloud dependency) using `vosk-model-small-en-us-0.15`. The transcribed text is returned as JSON and displayed on screen for confirmation before use. A simple filler-word filter (`processing()`) strips common hesitation words (`"uh"`, `"um"`, `"hmm"`, etc.) from the result.
  
@@ -125,7 +124,7 @@ The server processes the audio with **Vosk** (offline STT, no cloud dependency) 
 ### Requirements
  
 ```bash
-pip install flask vosk psutil Cencrypt
+pip install flask vosk Cencrypt
 ```
  
 Download the Vosk model and place it at `models/vosk-model-small-en-us-0.15/`:
@@ -133,35 +132,43 @@ Download the Vosk model and place it at `models/vosk-model-small-en-us-0.15/`:
 https://alphacephei.com/vosk/models
 ```
  
+You will also need [ngrok](https://ngrok.com/) installed and authenticated on the Raspberry Pi.
+ 
 ### Running
+ 
+In one terminal, start the Flask server:
  
 ```bash
 python server.py
 ```
  
-The server listens on `0.0.0.0:5000`. The device firmware expects it at `192.168.1.254` — update the hardcoded URL in `main.py` if your server IP differs.
+In a separate terminal, start the ngrok tunnel:
+ 
+```bash
+ngrok http --url=blog-skipping-send.ngrok-free.dev 5000
+```
+ 
+The server listens on `0.0.0.0:5000` and is exposed publicly via the ngrok tunnel. Update the tunnel URL in `main.py` and `server.py` if your ngrok domain changes (search for `ngrok-free.dev`).
  
 ### Endpoints
  
 | Method | Route | Description |
 |--------|-------|-------------|
-| `POST` | `/stt` | Accepts a WAV file, returns `{"text": "..."}` |
+| `POST` | `/stt` | Accepts a WAV file + device ID, returns `{"text": "..."}` |
 | `GET` | `/messages` | Returns full encrypted message history as JSON |
 | `GET/POST` | `/gc` | Post a group chat message or view the web UI |
-| `GET` | `/updates` | Returns server alphabet or message history |
+| `GET` | `/updates` | Returns server alphabet, message history, or mailbox for a device ID |
+| `GET/POST` | `/getID` | Registers a new device ID; returns `"Clear"` if available or a new unique ID |
+| `GET/POST` | `/send-msg` | Deposits a message into a device's mailbox by destination ID |
  
 ---
  
 ## Device Setup
  
 1. Flash MicroPython to the ESP32.
-2. Upload `main.py`, `Cencrypt.py`, and `ssd1680.py` to the device filesystem. The `Cencrypt.py` module can be downloaded from [PyPI](https://pypi.org/project/Cencrypt/) or installed via `mip` on the device.
-3. Edit the Wi-Fi credentials in `main.py`:
-```python
-   self.wlan.connect('ssid', 'key')  # replace with your network
-```
-4. Update the server IP if needed (search for `192.168.1.254` in `main.py`).
-5. Power on — the device displays "HANDCRYPTION" and plays the startup chime.
+2. Upload `main.py`, `Cencrypt.py`, and `ssd1680.py` to the device filesystem. `Cencrypt.py` can be downloaded from [PyPI](https://pypi.org/project/Cencrypt/) or installed via `mip` on the device.
+3. Update the ngrok tunnel URL in `main.py` if your domain changes (search for `ngrok-free.dev`).
+4. Power on — the device displays "HANDCRYPTION", plays the startup chime, and registers its device ID with the server on first boot.
 ---
  
 ## UI & Navigation
@@ -175,14 +182,14 @@ The main menu has four options navigated with **Up/Down** and confirmed with **S
 | Settings (right) | `2` | Reset data or adjust volume |
 | Message bubble (top) | `3` | Access group chat |
 | *(Send button)* | `4` | Record and send a direct message |
-| *(Idle timeout)* | `5` | Enter client/receive mode |
+| *(Idle timeout)* | `5` | Enter receive mode |
  
 **Button reference:**
  
 | Button | Role |
 |--------|------|
 | Record (hold) | Capture audio |
-| Send | Open send-message flow / navigate |
+| Send | Open send-message flow |
 | Select | Confirm selection |
 | Up / Down | Navigate menus |
 | Shut Off (hold 1s+) | Deep sleep (wakes on release) |
@@ -202,12 +209,13 @@ All JSON files are created automatically on first boot if absent.
  
 | File | Contents |
 |------|----------|
-| `known_ips.json` | `{ "ip": [shuffled alphabet array], ... }` |
-| `contacts.json` | `{ "Name": "ip", ... }` |
-| `history.json` | Array of sent message records (plaintext + ciphertext + timestamp) |
-| `my_letters.json` | Cipher alphabet received from server (client role only) |
-| `recording.wav` | Temporary audio file, overwritten each recording |
+| `device_ID.json` | This device's unique 9-digit ID, registered with the server on first boot |
+| `known_ids.json` | `{ "device_id": [shuffled alphabet array], ... }` |
+| `contacts.json` | `{ "Name": "device_id", ... }` |
+| `history.json` | Array of sent message records (plaintext + ciphertext + timestamp + contact) |
+| `my_letters.json` | Cipher alphabet received from sender (used in receive mode) |
+| `recording.wav` | Temporary audio file, overwritten on each recording |
  
-The **Settings → Reset** option wipes `contacts.json`, `history.json`, and `known_ips.json` back to empty — forcing a full re-handshake and new cipher key exchange on the next connection.
+The **Settings → Reset** option wipes `contacts.json`, `history.json`, and `known_ids.json` back to empty — forcing a full re-handshake and new cipher key exchange on the next connection.
  
 ---
