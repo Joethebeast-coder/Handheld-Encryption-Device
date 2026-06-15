@@ -13,16 +13,6 @@ import machine
 from ssd1680 import SSD1680, Color
 from machine import Pin, ADC, SPI, PWM, I2C
 
-#_____________________________________IP helper__________________________________________
-
-def get_device_ip():
-    wlan = network.WLAN(network.WLAN.IF_STA)
-    if wlan.isconnected():
-        return wlan.ipconfig('addr4')
-
-    ap = network.WLAN(network.WLAN.IF_AP)
-    return ap.ipconfig('addr4')
-
 #_____________________________________Button Setup_______________________________________
 
 record_button = Pin(5, Pin.IN, Pin.PULL_UP) 
@@ -170,10 +160,10 @@ def collect_audio(samples):
 
     return samples
 
-def request_n_parse_translation():
-    url = "http://192.168.1.254/stt"
+def request_n_parse_translation(dev_id):
+    url = "https://blog-skipping-send.ngrok-free.dev/stt"
     with open("recording.wav", "rb") as f:
-        r = urequests.post(url, files={"file": f}, data={"Request" : "transl", "IP" : get_device_ip()})
+        r = urequests.post(url, files={"file": f}, data={"Request" : "transl", "ID" : dev_ID})
     
     data = ujson.loads(r.text)
     text = data["text"]
@@ -200,8 +190,8 @@ LETTERS = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","
     "*","(",")","<",">","?","|",";",";",":","'","\"","{","}"]
 
 #Creates json files
-if not os.path.exists("known_ips.json"):
-    with open("known_ips.json", "w") as f:
+if not os.path.exists("known_ids.json"):
+    with open("known_ids.json", "w") as f:
         f.close
 
 if not os.path.exists("my_letters.json"):
@@ -216,29 +206,26 @@ if not os.path.exists("history.json"):
     with open("history.json", "w") as f:
         f.close
 
+if not os.path.exists("device_ID.json"):
+    with open("device_ID.json", "w") as f:
+        dev_ID = random.randrange(100000000, 999999999)
+        id_clear = urequests.post(f"https://blog-skipping-send.ngrok-free.dev/getID?req_ID={dev_ID}")
+        recv = id_clear.json()
+        if recv == "clear":
+            f.write(str(dev_ID))
+        else:
+            dev_ID = recv
+            f.write(recv)
+else:
+    with open("device_ID.json", "r") as f:
+        dev_ID = f.read().strip()
+
 class esp_network_server:
     def __init__(self):
         self.running = True
-        #Networking Setup
-        self.wlan = network.WLAN()
-        self.wlan.active(True)
-        self.wlan.scan()
-        self.wlan.connect('ssid', 'key')
-        hIP = self.wlan.ipconfig('addr4') #Variable for host IP
 
-        self.ap = network.WLAN(network.WLAN.IF_AP)
-        self.ap.config(ssid='ESP-AP')
-        self.ap.config(max_clients=15) #15 is the max amount of people that can connect
-        self.ap.active(True)
-
-        #Connection
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        port = 40675
-        self.s.bind((hIP, port))
-        self.s.listen(3)
-
-        self.known_ips_path = "known_ips.json"
-        self.known_ips = self.load_known_ips()
+        self.known_ids_path = "known_ids.json"
+        self.known_ids = self.load_known_ids()
 
         self.contacts_path = "contacts.json"
         if os.path.exists(self.contacts_path):
@@ -249,33 +236,30 @@ class esp_network_server:
 
         self.message_to_send = ""
 
-    def load_known_ips(self):
-        # Load known IPs properly
-        if os.path.exists(self.known_ips_path):
+    def load_known_ids(self):
+        # Load known ids properly
+        if os.path.exists(self.known_ids_path):
             try:
-                with open(self.known_ips_path, "r") as f:
+                with open(self.known_ids_path, "r") as f:
                     return json.load(f)
             except:
                 return {}
         else:
             return {}
         
-    def run(self, get_message, target_ip, contact):
+    def run(self, get_message, target_id, contact):
         self.clients = {}
-        self.target_ip = target_ip
+        self.target_id = target_id
 
         while self.running:
-            c, addr = self.s.accept()
-            ip = addr[0]
 
-            self.clients[ip] = {
-                "socket": c,
+            self.clients[self.target_id] = {
                 "letters": LETTERS
             }
 
-            if ip not in self.known_ips:
+            if self.target_id not in self.known_ids:
 
-                wrap_text(epd, f"New device: {ip}. Enter a contact name: ", 20, 20)
+                wrap_text(epd, f"New device: {self.target_id}. Enter a contact name: ", 20, 20)
                 percent = get_percent()
                 draw_battery(epd, percent, epd.width - 40, 5)
                 epd.update()
@@ -298,7 +282,7 @@ class esp_network_server:
                                     f.write(s)
                             break
                     
-                    txt = request_n_parse_translation()
+                    txt = request_n_parse_translation(dev_ID)
                     processed_txt = processing(txt)
                     epd.clear(Color.WHITE)
                     time.sleep(0.1)
@@ -321,89 +305,41 @@ class esp_network_server:
                         continue
 
                 name_ = processed_txt
-                self.contacts[name_] = ip
+                self.contacts[name_] = self.target_id
 
                 with open(self.contacts_path, "w") as f:
                     json.dump(self.contacts, f)
 
-                #First time this IP connects, give their key
+                #First time this id connects, give their key
                 random.shuffle(LETTERS)
-                self.known_ips[ip] = LETTERS.copy()
+                self.known_ids[self.target_id] = LETTERS.copy()
 
                 # Send alphabet
-                c.send(json.dumps(self.known_ips[ip]).encode("utf-8"))
+                alph = json.dumps(self.known_ids[self.target_id])
+                payload = ujson.dumps({"msg": alph, "destinationID": self.target_id})
+                send = urequests.post(f"https://blog-skipping-send.ngrok-free.dev/send-msg",
+                               data=payload,
+                               headers={"Content-Type": "application/json"})
 
-                # Save updated known_ips
-                with open(self.known_ips_path, "w") as f:
-                    json.dump(self.known_ips, f)
+                # Save updated known_ids
+                with open(self.known_ids_path, "w") as f:
+                    json.dump(self.known_ids, f)
 
-            client_letters = self.known_ips[ip]
+            client_letters = self.known_ids[self.target_id]
 
-            self.clients[ip] = {
-                "socket": c,
+            self.clients[self.target_id] = {
                 "letters": client_letters
             }
 
-            #Start timer
-            last_check = time.time()
-
-            last_msg = None
+            
             while self.running:
-                #Check for incoming data
-                c.settimeout(0.1)
-                try:
-                    data = c.recv(1024)
-                    if data:
-                        last_msg = data
-                        client_msg = data.decode('utf-8')
-
-                        if self.message_to_send == "Closing Server":
-                            if "rec-close" in client_msg and ip in client_msg:
-                                time.sleep(0.1)
-                                c.close()
-                                self.running = False
-                            else:
-                                time.sleep(3)
-                                if "rec-close" in client_msg and ip in client_msg:
-                                    time.sleep(0.1)
-                                    c.close()
-                                    self.running = False 
-                except:
-                    pass
-
-                #Client check every 15 seconds
-                if time.time() - last_check >= 15:
-                    status = self.cli_check(last_msg, ip)
-                    last_check = time.time()
-
-                    if not status:
-                        epd.clear(Color.WHITE)
-                        percent = get_percent()
-                        draw_battery(epd, percent, epd.width - 40, 5)
-                        epd.show_string("Client disconnected", 20, 20)
-                        epd.update()
-                        c.close()
-                        self.running = False
 
                 #Send encrypted message
                 message = get_message()
                 
-                target = self.clients.get(self.target_ip)
-                if not target:
-                    epd.clear(Color.WHITE)
-                    percent = get_percent()
-                    draw_battery(epd, percent, epd.width - 40, 5)
-                    epd.show_string("Client not connected", 20, 20)
-                    epd.update()
-                    continue
+                target = self.clients.get(self.target_id)
 
-                sock = target["socket"]
                 letters = target["letters"]
-
-                if message == "Closing Server":
-                    self.message_to_send = "Closing Server"
-                    sock.send(self.message_to_send.encode())
-                    continue
 
                 new_message, sent_key = ce.cipher(message, alphabet=letters)
                 combined_message = sent_key + new_message
@@ -419,7 +355,7 @@ class esp_network_server:
                 else:
                     history = []
                 
-                history.append({"To" : contact, "IP" : target_ip, "Time" : time.time(), "Message" : message, "Cencrypted Message" : combined_message})
+                history.append({"To" : contact, "ID" : target_id, "Time" : time.time(), "Message" : message, "Cencrypted Message" : combined_message})
                 with open("history.json", "w") as f:
                     json.dump(history, f)
             
@@ -427,7 +363,11 @@ class esp_network_server:
                 percent = get_percent()
                 draw_battery(epd, percent, epd.width - 40, 5)
                 epd.update()
-                sock.send(combined_message.encode("utf-8"))
+                payload = ujson.dumps({"msg": combined_message, "destinationID": self.target_id})
+                urequests.post(f"https://blog-skipping-send.ngrok-free.dev/send-msg",
+                               data=payload,
+                               headers={"Content-Type": "application/json"})
+                
                 time.sleep(0.5)
                 epd.clear(Color.WHITE)
                 epd.show_string("Sent", 20, 20)
@@ -436,17 +376,6 @@ class esp_network_server:
                 epd.update()                
                 time.sleep(0.5)
                 self.running = False
-                
-    def cli_check(self, last_msg, ip):
-        if last_msg is None:
-            return False
-        
-        try:
-            msg = last_msg.decode('utf-8')
-        except:
-            msg = str(last_msg)
-        
-        return ip in msg
 
 
 
@@ -454,12 +383,6 @@ class esp_network_client:
 
     def __init__(self):
         self.running = True
-        self.wlan = network.WLAN(network.WLAN.IF_STA)
-        self.wlan.active(True)
-        self.wlan.connect('ESP-AP')
-
-        while not self.wlan.isconnected():
-            time.sleep(0.1)
         
     
     def client(self, out_message, percent_vol):
@@ -472,38 +395,27 @@ class esp_network_client:
                     else:
                         LETTERS = None
                 
-            server_ip = '192.168.4.1'
-            server_port = 40675
-            cli_ip = self.wlan.ipconfig('addr4')
-
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((server_ip, server_port))
-            s.send(cli_ip.encode())
-            
-            timer = time.time()
-            
+            if os.path.exists("device_ID.json"):
+                with open("device_ID.json", "r") as f:
+                    data = f.read().strip()
+                    my_id = json.loads(data)
+                    
             if LETTERS is None:
-                data = s.recv(1024).decode("utf-8")
+                data = gc_req_update("check_mail", my_id)
                 LETTERS = json.loads(data)
 
                 with open("my_letters.json", "w") as f:
                     json.dump(LETTERS, f)
             
             while self.running:
-                msg = s.recv(1024)
-                if msg.decode() == "Closing Server":
-                    s.send(f"rec-close : {cli_ip}")
-                    s.close()
-                    self.running = False
+                msg = gc_req_update("check_mail", my_id)
 
                 true_message = ce.decipher(msg, alphabet=LETTERS)
                 notif_chime(percent_vol=percent_vol)
                 out_message(true_message)
+                time.sleep(2)
 
-                if time.time() - timer >= 15:
-                    packet = f"Received {cli_ip}"
-                    s.send(packet.encode('utf-8'))
-                    timer = time.time()
+                
         except:
             return None
 
@@ -1074,8 +986,8 @@ def gc_UI(is_full):
             epd.clear(Color.WHITE)
             return None
         
-def gc_req_update(request):
-    r = urequests.get("http://192.168.1.254/updates?Request=request")
+def gc_req_update(request, device_id=None):
+    r = urequests.get(f"https://blog-skipping-send.ngrok-free.dev/updates?Request={request}&dev_id={device_id}")
     data = r.json()
 
     return data
@@ -1137,7 +1049,7 @@ while True:
                             f.write(s)
                 
                 epd.clear(Color.WHITE)
-                txt = request_n_parse_translation()
+                txt = request_n_parse_translation(dev_ID)
                 processed_txt = processing(txt)
                 wrap_text(epd, f"Message: {processed_txt}", 10, 10)
                 wrap_text(epd, "Press 'UP' to Confirm the message, 'DOWN' to Try Again", 10, 50)
@@ -1195,9 +1107,9 @@ while True:
                 continue
             else:
                 target_name = contact_list[cont_num]
-                target_ip = contacts[target_name]
+                target_id = contacts[target_name]
                 device = esp_network_server()
-                device.run(get_processed_message, target_ip, target_name)
+                device.run(get_processed_message, target_id, target_name)
 
         elif u_select == 0:
             #History
@@ -1279,6 +1191,7 @@ while True:
                                 cont_num = len(stored_contacts) - 1
 
                     except Exception:
+                        contacts = {}
                         wrap_text(epd, "Create a contact", 20, 20)
                         percent = get_percent()
                         draw_battery(epd, percent, epd.width - 40, 5)
@@ -1302,12 +1215,12 @@ while True:
                                             f.write(s)
                                     break
                             
-                            txt = request_n_parse_translation()
+                            txt = request_n_parse_translation(dev_ID)
                             processed_txt = processing(txt)
 
                             epd.clear(Color.WHITE)
                             now_time = time.time()
-                            wrap_text(epd, "Record the IP", 50, 50)
+                            wrap_text(epd, "Record the ID", 50, 50)
                             percent = get_percent()
                             draw_battery(epd, percent, epd.width - 40, 5)
                             epd.update()
@@ -1323,14 +1236,14 @@ while True:
                                             f.write(s)
                                     break
                             
-                            txt = request_n_parse_translation()
-                            ip = processing(txt)
+                            txt = request_n_parse_translation(dev_ID)
+                            cl_id = processing(txt)
 
                             epd.clear(Color.WHITE)
                             time.sleep(0.1)
                             percent = get_percent()
                             draw_battery(epd, percent, epd.width - 40, 5)
-                            wrap_text(epd, f"Set IP to {ip}?", 10, 10)
+                            wrap_text(epd, f"Set ID to {cl_id}?", 10, 10)
                             epd.update()
                             time.sleep(0.1)
                             wrap_text(epd, "Press 'Select' to Confirm", 20, 20)
@@ -1347,12 +1260,13 @@ while True:
                                 continue
 
                         name_ = processed_txt
-                        contacts[name_] = ip
+                        contacts[name_] = cl_id
 
                         with open("contacts.json", "w") as f:
                             json.dump(contacts, f)
 
             else:
+                contacts = {}
                 wrap_text(epd, "Sorry, you have no current contacts. Please create one", 20, 20)
                 percent = get_percent()
                 draw_battery(epd, percent, epd.width - 40, 5)
@@ -1376,12 +1290,12 @@ while True:
                                     f.write(s)
                             break
                             
-                    txt = request_n_parse_translation()
+                    txt = request_n_parse_translation(dev_ID)
                     processed_txt = processing(txt)
 
                     epd.clear(Color.WHITE)
                     now_time = time.time()
-                    wrap_text(epd, "Record the IP", 50, 50)
+                    wrap_text(epd, "Record the ID", 50, 50)
                     percent = get_percent()
                     draw_battery(epd, percent, epd.width - 40, 5)
                     epd.update()
@@ -1397,14 +1311,14 @@ while True:
                                     f.write(s)
                             break
                             
-                    txt = request_n_parse_translation()
-                    ip = processing(txt)
+                    txt = request_n_parse_translation(dev_ID)
+                    cl_id = processing(txt)
 
                     epd.clear(Color.WHITE)
                     time.sleep(0.1)
                     percent = get_percent()
                     draw_battery(epd, percent, epd.width - 40, 5)
-                    wrap_text(epd, f"Set IP to {ip}?", 10, 10)
+                    wrap_text(epd, f"Set ID to {cl_id}?", 10, 10)
                     epd.update()
                     time.sleep(0.1)
                     wrap_text(epd, "Press 'Select' to Confirm", 20, 20)
@@ -1421,7 +1335,7 @@ while True:
                         continue
 
                 name_ = processed_txt
-                contacts[name_] = ip
+                contacts[name_] = cl_id
 
                 with open("contacts.json", "w") as f:
                     json.dump(contacts, f)
@@ -1478,7 +1392,7 @@ while True:
                     with open("history.json", "w") as f:
                         json.dump([], f)
                     
-                    with open("known_ips.json", "w") as f:
+                    with open("known_ids.json", "w") as f:
                         json.dump({}, f)
                         
                     epd.clear(Color.WHITE)
@@ -1526,8 +1440,8 @@ while True:
                                     f.write(s)
                             break
                             
-                    pre_txt = request_n_parse_translation()
-                    gc_username = processing(txt)
+                    pre_txt = request_n_parse_translation(dev_ID)
+                    gc_username = processing(pre_txt)
                     
                     draw_battery(epd, percent, epd.width - 40, 5)
                     wrap_text(epd, f"Set Username to {gc_username}?", 10, 10)
@@ -1547,7 +1461,7 @@ while True:
                         continue
                     
             full_req = f"gc{gc_username}"
-            my_ip = get_device_ip()
+            my_id = dev_ID
             
             user_gc_choice = gc_UI(is_past_msg_sent)
 
@@ -1570,8 +1484,8 @@ while True:
                                     f.write(s)
                             break
                                 
-                    snd_txt = request_n_parse_translation()
-                    msg = processing(txt)
+                    snd_txt = request_n_parse_translation(dev_ID)
+                    msg = processing(snd_txt)
                         
                     draw_battery(epd, percent, epd.width - 40, 5)
                     wrap_text(epd, f"Send: {msg}?", 10, 10)
@@ -1589,7 +1503,7 @@ while True:
                     elif down.value() == 0:
                         epd.clear(Color.WHITE)
                         continue
-                r = urequests.post("http://192.168.1.254/gc?Request=full_req&IP=my_ip&Message=msg")
+                r = urequests.post(f"https://blog-skipping-send.ngrok-free.dev/gc?Request={full_req}&ID={dev_ID}&Message={msg}")
                 sent_comf = r.json()
 
             elif user_gc_choice == 0 and is_past_msg_sent == False:
@@ -1611,8 +1525,8 @@ while True:
                                     f.write(s)
                             break
                                 
-                    snd_txt = request_n_parse_translation()
-                    msg = processing(txt)
+                    snd_txt = request_n_parse_translation(dev_ID)
+                    msg = processing(snd_txt)
                         
                     draw_battery(epd, percent, epd.width - 40, 5)
                     wrap_text(epd, f"Send: {msg}?", 10, 10)
@@ -1631,7 +1545,7 @@ while True:
                         epd.clear(Color.WHITE)
                         continue
 
-                r = urequests.post("http://192.168.1.254/gc?Request=full_req&IP=my_ip&Message=msg")
+                r = urequests.post(f"https://blog-skipping-send.ngrok-free.dev/gc?Request={full_req}&ID={dev_ID}&Message={msg}")
                 sent_comf = r.json()
             
             elif user_gc_choice == 0 and is_past_msg_sent == True:
@@ -1665,6 +1579,7 @@ while True:
                         msg_num = len(hist) - 1
                         time.sleep(0.4)
 
+                    past_msg_num = msg_num
             else:
                 continue
                 
