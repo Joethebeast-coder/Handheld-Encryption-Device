@@ -15,6 +15,8 @@ model = Model("models/vosk-model-small-en-us-0.15")
 gc_users = []
 site_data = {}
 messg_hist = []
+non_av_IDS = []
+mailbox = []
 
 LETTERS = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"," ",
     "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z",".",
@@ -59,11 +61,12 @@ def group_chat():
         user = {}
         user_name = req[2:]
         user["Username"] = user_name
-        ip = request.values.get("IP")
-        user["IP"] = ip
+        id = request.values.get("ID")
+        user["ID"] = id
         gc_users.append(user)
         msg = request.values.get("Message")
-        encrypted_msg_to_post = Cencrypt.cipher(msg, alphabet=ALPH)
+        encrypted_msg_to_post, key = Cencrypt.cipher(msg, alphabet=ALPH)
+        encrypted_msg_to_post = f"{key}{encrypted_msg_to_post}"
         site_data["Username"] = user_name
         site_data["Message"] = encrypted_msg_to_post
 
@@ -76,10 +79,44 @@ def group_chat():
 
 @app.route("/updates", methods=["GET"])
 def prov_updates():
-    req = request.form.get("Request")
+    req = request.values.get("Request")
     if req == "serv_letters":
         return jsonify(ALPH)
     elif req == "prov_hist":
         return jsonify(messg_hist)
-    
+    elif req == "check_mail":
+        dev_ID = request.values.get("dev_id")
+        messages = [msg for dest, msg in mailbox if dest == dev_ID]
+        return jsonify(messages)
+
+@app.route("/getID", methods=['GET', 'POST'])
+def get_ID():
+    global non_av_IDS
+
+    requested_ID = request.values.get("req_ID")
+    id_clear = False
+
+    if requested_ID not in non_av_IDS:
+        msg = "Clear"
+        non_av_IDS.append(requested_ID)
+        id_clear = True
+        return jsonify(msg)
+    else:
+        while id_clear == False:
+            id = random.randrange(100000000,999999999)
+            if id not in non_av_IDS:
+                id_clear = True
+                return jsonify(id)
+
+@app.route("/send-msg", methods=['GET', 'POST'])
+def send_msg():
+    global mailbox
+
+    msg = request.values.get("msg")
+    destintationID = request.values.get("destinationID")
+
+    mailbox.append((destintationID, msg))
+
+    return "sent"
+
 app.run(host="0.0.0.0", port=5000)
