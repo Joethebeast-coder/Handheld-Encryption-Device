@@ -1,6 +1,6 @@
 Framework
 
-                  Google API                                                       My Library: Cencrypt
-Microphone -> Voice to Text -> Connect to a device -> Create special list for device -> Encrypt -> Send
+          VOSK through Outer Server                                                       My Library: Cencrypt
+Microphone -> Voice to Text -> Connect to a device ID -> Create special list for device -> Encrypt -> Send to server -> Server sends to destination
                                                  IP Networking 
 
