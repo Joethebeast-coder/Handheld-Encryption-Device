@@ -133,7 +133,8 @@ https://alphacephei.com/vosk/models
 ```
  
 You will also need [ngrok](https://ngrok.com/) installed and authenticated on the Raspberry Pi.
- 
+Note. In this example, I am using my own ngrok domain. For your own set of devices, create another domain.
+
 ### Running
  
 In one terminal, start the Flask server:
@@ -145,7 +146,7 @@ python server.py
 In a separate terminal, start the ngrok tunnel:
  
 ```bash
-ngrok http --url=blog-skipping-send.ngrok-free.dev 5000
+ngrok http --url=your-url.dev 5000
 ```
  
 The server listens on `0.0.0.0:5000` and is exposed publicly via the ngrok tunnel. Update the tunnel URL in `main.py` and `server.py` if your ngrok domain changes (search for `ngrok-free.dev`).
@@ -188,7 +189,7 @@ The main menu has four options navigated with **Up/Down** and confirmed with **S
  
 | Button | Role |
 |--------|------|
-| Record (hold) | Capture audio |
+| Record (hold) | Capture audio, or go back in some cases |
 | Send | Open send-message flow |
 | Select | Confirm selection |
 | Up / Down | Navigate menus |
