@@ -269,6 +269,10 @@ The **Settings → Reset** option wipes `contacts.json`, `history.json`, and `kn
 
 ## Credits
 
-The SSD1680 e-ink display driver (`ssd1680.py`) and its accompanying `fonts.py` used in this project are based on work by [hfwang132](https://github.com/hfwang132), available at [hfwang132/ssd1680-micropython-drivers](https://github.com/hfwang132/ssd1680-micropython-drivers/tree/main). Many thanks for the MicroPython driver that made the display portion of this project possible.
+The SSD1680 e-ink display driver (`ssd1680.py`) and its accompanying `fonts.py` used in this project are based on work by [hfwang132](https://github.com/hfwang132), available at [hfwang132/ssd1680-micropython-drivers](https://github.com/hfwang132/ssd1680-micropython-drivers/tree/main). Many thanks for the MicroPython driver that made the display portion of this project possible. 
+
+## AI Usage
+
+AI was used to help find bugs in my code.
 
 ---
