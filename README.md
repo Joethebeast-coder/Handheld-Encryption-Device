@@ -58,6 +58,10 @@ Each device is assigned a unique numeric ID on first boot, which is used to rout
 | 36/35/37 | SPI SCK/MOSI/MISO (e-ink) |
 | 12/6/13/9 | E-ink DC/Busy/CS/Reset |
 
+###
+
+<img width="1169" height="827" alt="image" src="https://github.com/user-attachments/assets/9e2d81ae-9f03-4d98-8e92-48a024ba4375" />
+
 ---
 
 ## Project Structure
