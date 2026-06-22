@@ -26,6 +26,7 @@ A hardware-based encrypted peer-to-peer messaging device built on MicroPython (E
 
 ## Overview
 
+### [Video Overview (Pre-funding)](https://www.youtube.com/watch?v=kqKA_LZ2jB4)
 Handcryption is a hardware-based encrypted peer-to-peer messaging device built around physical ESP32 devices and a Flask server hosted on a Raspberry Pi 4, exposed publicly via an ngrok tunnel. Messages can be sent as voice-transcribed text or as fully encrypted voice clips, transcribed/processed using a local Vosk speech-to-text model on the companion server, encrypted using a custom substitution cipher (text) or RSA-protected XOR cipher (voice), and relayed through the server's mailbox system. The device uses an e-ink display and physical buttons for all interaction — no smartphone or touchscreen required.
 
 Each device is assigned a unique numeric ID on first boot, which is used to route messages and identify contacts. A secondary group chat feature allows multiple devices to post to a shared encrypted channel viewable in a basic web interface.
