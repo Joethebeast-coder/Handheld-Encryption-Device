@@ -9,6 +9,8 @@ ___
 - Networking Framework
 - Encryption Setup
 
+<img width="1217" height="900" alt="image" src="https://github.com/user-attachments/assets/2829b4a2-be44-47e0-acb7-83bf51e57bb9" />
+
 #
 
 ## Handcryption Status Update 0.0.1.5
@@ -21,6 +23,8 @@ ___
 *Note: I completely forgot about the screen and the parts needed for that.
 E-ink display
 6 buttons
+
+<img width="1209" height="900" alt="image" src="https://github.com/user-attachments/assets/fe83efcd-3f38-4539-9262-03ea067de418" />
 
 #
 
@@ -38,6 +42,8 @@ ___
 
 - By 0.0.2.5, a wiring diagram should be complete.
 
+<img width="1260" height="900" alt="image" src="https://github.com/user-attachments/assets/96409c1b-b3e4-48e2-a659-7e7b22c66e9b" />
+
 #
 
 ## Hancryption Status Update 0.0.2.1
@@ -47,6 +53,8 @@ ___
 I patched some bugs in the client class so I could add a main loop for the device. When the device is sending, it is the server, and in any other circumstance, it is the client, it is idle and waiting for a message.
 I added the button and microphone logic for the specific components.
 I need to add the logic for the eink display
+
+<img width="1035" height="900" alt="image" src="https://github.com/user-attachments/assets/96dec99d-f122-407d-abbb-fdb58ce66f6a" />
 
 #
 
@@ -83,6 +91,9 @@ __________________________________________________________
 -Extra UI Features
 -Possibility of Games
 
+<img width="1017" height="900" alt="image" src="https://github.com/user-attachments/assets/9e1b2dfd-c371-48e8-a983-73e8e760762c" />
+<img width="1241" height="900" alt="image" src="https://github.com/user-attachments/assets/08744b53-8700-4d89-ae33-8d6cf2f61645" />
+
 #
 
 ## Handcryption Status Update 0.0.3.2 (Big News)
@@ -96,6 +107,8 @@ ________________________________________________________________________________
 ### What's Next?
   - Speech-to-text code for the Raspberry Pi
   - Communication Protocol between the device and Pi
+
+<img width="1136" height="900" alt="image" src="https://github.com/user-attachments/assets/da22ca7c-a33c-4ce8-975c-f51b30618580" />
 
 #
 
@@ -112,6 +125,8 @@ __________________________________________________________
   - Preliminary BOM
   - Timeline Estimation
   - Extra Features for the Device
+
+<img width="1394" height="900" alt="image" src="https://github.com/user-attachments/assets/8f8e3728-6bcc-451d-a1ee-78ca23dc5fdc" />
 
 #
 
@@ -135,6 +150,9 @@ __________________________________________________________
   - Increase Website Functionality
   - Timeline Estimation
   - Code Cleanup and Extra Features
+___
+Photo Description: Some of the server code for the group chat
+<img width="1019" height="900" alt="image" src="https://github.com/user-attachments/assets/90d87c2c-e4a9-4ca4-ad63-9ce2b05cb328" />
 
 # 
 
@@ -157,6 +175,8 @@ __________________________________________________________
   - Extra Add-on Device Features
   - Maybe more website interactivity
 
+<img width="929" height="900" alt="image" src="https://github.com/user-attachments/assets/aa5342d0-eb17-474f-8cc2-76fa4ff45c13" />
+
 #
 
 ## Hancryption Status Update 0.0.4
@@ -171,6 +191,8 @@ __________________________________________________________
 - Sneak Peek at Funding Request Version
 - Timeline
 
+<img width="1539" height="900" alt="image" src="https://github.com/user-attachments/assets/4a2d7c4b-a186-44cc-a307-4e8ea7055bd9" />
+
 #
 
 ## Handcryption Status Update 0.1
@@ -183,5 +205,7 @@ Also on GitHub are my 3D models. Be aware that the part models' heights are an e
 __________________________________________________________
 I am a little disappointed that the hackatime in my VS Code editor stopped recording time, and I lost 2 hours, but I will just use Lapse from now on. 
 __________________________________________________________
+
+<img width="1423" height="900" alt="image" src="https://github.com/user-attachments/assets/7347f298-aca3-45a8-ae78-af3ec918a43b" />
 
 #
