@@ -3,7 +3,15 @@
 A hardware-based encrypted peer-to-peer messaging device built on MicroPython (ESP32), with a companion Flask server for speech-to-text, message relay, and group chat support.
 
 ---
+## Pre-funding Images
+___
+### Shell Top
+<img width="900" height="1193" alt="IMG_E3014" src="https://github.com/user-attachments/assets/7ab689f4-8a87-4041-b5ef-dbc83837650f" />
 
+### Shell Bottom
+<img width="900" height="1193" alt="IMG_E3015" src="https://github.com/user-attachments/assets/0e711094-95b3-4a51-96f7-fceeb1a945d7" />
+
+___
 ## Table of Contents
 
 - [Overview](#overview)
