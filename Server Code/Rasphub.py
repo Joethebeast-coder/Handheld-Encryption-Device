@@ -9,8 +9,16 @@ import math
 
 #Flask server setup
 app = Flask(__name__)
-model = Model("models/vosk-model-small-en-us-0.15")
 
+import os
+AUTH_TOKEN = os.environ.get("DEVICE_TOKEN", "hgjjgjsjfkshdotmcskglhjshjeditdg")
+
+@app.before_request
+def require_token():
+    if request.headers.get("X-Auth") != AUTH_TOKEN:
+        return jsonify({"error": "unauthorized"}), 401
+    
+model = Model("/home/pi/models/vosk-model-small-en-us-0.15")
 #Create all storage variables
 gc_users = []
 messg_hist = []
@@ -190,4 +198,4 @@ def get_large_prime():
     package = [f"{phi}/{d}/{n}/{key1}/{key2}"] #All info needed to create private and public keys
     return jsonify(package)
 
-app.run(host="0.0.0.0", port=5000) #Run the server
+#app.run(host="0.0.0.0", port=5000) #Run the server
