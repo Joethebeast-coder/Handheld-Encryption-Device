@@ -11,6 +11,15 @@ ___
 ### Shell Bottom
 <img width="900" height="1193" alt="IMG_E3015" src="https://github.com/user-attachments/assets/0e711094-95b3-4a51-96f7-fceeb1a945d7" />
 
+---
+## Final Images
+___
+### Shell Top
+<img width="3021" height="3570" alt="IMG_E3039" src="https://github.com/user-attachments/assets/530c84e8-49d5-4011-9c68-c96f48a9b8c7" />
+
+### Shell Bottom
+<img width="3024" height="4032" alt="IMG_3040" src="https://github.com/user-attachments/assets/e3bbb86f-cf84-4080-9c5f-0e0e1cc2e643" />
+
 ___
 ## Table of Contents
 
@@ -37,6 +46,7 @@ ___
 ## Overview
 
 ### [Video Overview (Pre-funding)](https://www.youtube.com/watch?v=kqKA_LZ2jB4)
+### [Full Build Test](https://youtu.be/IIfR6bDeaTY)
 
 Handcryption is a hardware-based encrypted peer-to-peer messaging device built around physical ESP32-S2 devices and a Flask server hosted on a Raspberry Pi 4, exposed publicly via a **Cloudflare tunnel**. Messages can be sent as transcribed text or as fully encrypted voice clips. Text is transcribed by a local Vosk speech-to-text model on the companion server (or typed directly on the device), encrypted using a custom substitution cipher (text) or an RSA-protected XOR cipher (voice), and relayed through the server's mailbox system. The device uses an e-ink display and physical buttons for all interaction — no smartphone or touchscreen required.
 
