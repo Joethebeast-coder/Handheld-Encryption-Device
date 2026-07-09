@@ -209,3 +209,11 @@ __________________________________________________________
 <img width="1423" height="900" alt="image" src="https://github.com/user-attachments/assets/7347f298-aca3-45a8-ae78-af3ec918a43b" />
 
 #
+
+## Handcryption Status Update 0.2
+___
+### Elephants in the Room
+___
+Ok, It's been a while; I've been doing a lot of work without logging time. But I have been able to assemble a device. The sad part is, one screen was defective, so I was only able to make one, but in the future I will finish the second one. The biggest change is that I've changed my code from MicroPython to CircuitPython for convenience. I have also increased the height of the main body because I am now using terminal blocks, which add height. 
+___
+I have submitted this project for review, and I really hope this is finally the moment I've been waiting for for so long.
